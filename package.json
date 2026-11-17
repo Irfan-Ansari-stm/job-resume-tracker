@@ -1,0 +1,20 @@
+{
+  "name": "ai-smart-resume-platform",
+  "version": "1.0.0",
+  "description": "AI-Powered Smart Resume Management Platform - Next.js + Express + PostgreSQL + Raw SQL",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "build": "npm --prefix backend run build && npm --prefix frontend run build",
+    "start": "concurrently \"npm --prefix backend run start\" \"npm --prefix frontend run start\"",
+    "db:migrate": "node backend/dist/scripts/migrate.js",
+    "db:rollback": "node backend/dist/scripts/rollback.js",
+    "db:seed": "node backend/dist/scripts/seed.js",
+    "db:reset": "node backend/dist/scripts/reset.js",
+    "test": "npm --prefix backend test"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
