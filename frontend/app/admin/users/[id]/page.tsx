@@ -29,6 +29,10 @@ import {
   X,
   CreditCard,
   ExternalLink,
+  FileText,
+  Eye,
+  Download,
+  RefreshCw,
 } from 'lucide-react';
 
 export default function AdminUserDetailsPage() {
@@ -48,6 +52,64 @@ export default function AdminUserDetailsPage() {
   const [showAssistModal, setShowAssistModal] = useState(false);
   const [assistReason, setAssistReason] = useState('Super Admin assisting user with resume tailoring and formatting issues.');
   const [isStartingAssist, setIsStartingAssist] = useState(false);
+
+  // PDF Preview State
+  const [selectedPdfResume, setSelectedPdfResume] = useState<any | null>(null);
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
+  const [loadingPdf, setLoadingPdf] = useState(false);
+  const [pdfError, setPdfError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!selectedPdfResume) {
+      if (pdfBlobUrl) URL.revokeObjectURL(pdfBlobUrl);
+      setPdfBlobUrl(null);
+      setPdfError(null);
+      return;
+    }
+
+    if (selectedPdfResume.original_file_path) {
+      setLoadingPdf(true);
+      setPdfError(null);
+
+      const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+
+      fetch(`${apiUrl}/admin/resumes/${selectedPdfResume.id}/file`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+        .then((res) => {
+          if (!res.ok) throw new Error(`Failed to stream PDF (${res.status})`);
+          return res.blob();
+        })
+        .then((blob) => {
+          const blobUrl = URL.createObjectURL(blob);
+          setPdfBlobUrl(blobUrl);
+        })
+        .catch((err) => {
+          console.error('Error loading admin PDF blob:', err);
+          setPdfError(err.message || 'Could not stream PDF file');
+        })
+        .finally(() => {
+          setLoadingPdf(false);
+        });
+    }
+
+    return () => {
+      if (pdfBlobUrl) URL.revokeObjectURL(pdfBlobUrl);
+    };
+  }, [selectedPdfResume]);
+
+  const getAdminDirectPdfUrl = (resumeId: string) => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : '';
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+    return `${apiUrl}/admin/resumes/${resumeId}/file?token=${encodeURIComponent(token || '')}`;
+  };
+
+  const getAdminDownloadPdfUrl = (resumeId: string) => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : '';
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+    return `${apiUrl}/admin/resumes/${resumeId}/download?token=${encodeURIComponent(token || '')}`;
+  };
 
   const loadUserDetails = async () => {
     try {
@@ -516,6 +578,7 @@ export default function AdminUserDetailsPage() {
                 <th className="px-4 py-3">Resume Title</th>
                 <th className="px-4 py-3">Category</th>
                 <th className="px-4 py-3">Target Role</th>
+                <th className="px-4 py-3">Source Document</th>
                 <th className="px-4 py-3">Versions</th>
                 <th className="px-4 py-3">Primary</th>
                 <th className="px-4 py-3">Updated</th>
@@ -525,7 +588,7 @@ export default function AdminUserDetailsPage() {
             <tbody className="divide-y divide-slate-800/80">
               {resumes.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-500">
+                  <td colSpan={8} className="py-12 text-center text-slate-500">
                     Candidate has not created any resumes yet.
                   </td>
                 </tr>
@@ -535,6 +598,20 @@ export default function AdminUserDetailsPage() {
                     <td className="px-4 py-3 font-bold text-white">{r.title}</td>
                     <td className="px-4 py-3 text-slate-400">{r.category || 'General'}</td>
                     <td className="px-4 py-3 text-purple-300 font-medium">{r.target_role || 'Not specified'}</td>
+                    <td className="px-4 py-3">
+                      {r.original_file_path ? (
+                        <button
+                          onClick={() => setSelectedPdfResume(r)}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20 hover:bg-rose-500/20 transition-colors"
+                          title="Click to view candidate uploaded PDF"
+                        >
+                          <FileText className="h-3 w-3" />
+                          <span>PDF Document</span>
+                        </button>
+                      ) : (
+                        <span className="text-[10px] text-slate-500">Manual Profile</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 font-semibold text-white">{r.versions_count || 1}</td>
                     <td className="px-4 py-3">
                       {r.is_primary ? (
@@ -547,12 +624,24 @@ export default function AdminUserDetailsPage() {
                     </td>
                     <td className="px-4 py-3 text-slate-400">{formatDate(r.updated_at)}</td>
                     <td className="px-4 py-3 text-right">
-                      <Link
-                        href={`/builder/${r.id}`}
-                        className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
-                      >
-                        Inspect in Editor
-                      </Link>
+                      <div className="flex items-center justify-end gap-1.5">
+                        {r.original_file_path && (
+                          <button
+                            onClick={() => setSelectedPdfResume(r)}
+                            className="px-2 py-1 rounded bg-rose-500/10 border border-rose-500/20 text-[11px] font-bold text-rose-300 hover:bg-rose-500/20 transition-colors flex items-center gap-1"
+                            title="Preview candidate uploaded PDF"
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                            <span>View PDF</span>
+                          </button>
+                        )}
+                        <Link
+                          href={`/builder/${r.id}`}
+                          className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
+                        >
+                          Inspect in Editor
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -785,6 +874,111 @@ export default function AdminUserDetailsPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* SUPER ADMIN CANDIDATE PDF PREVIEW MODAL */}
+      {selectedPdfResume && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-3 sm:p-6 backdrop-blur-sm">
+          <div className="w-full max-w-5xl max-h-[92vh] flex flex-col rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-800 px-6 py-4 bg-slate-950/70 gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/20">
+                    Candidate Resume
+                  </span>
+                  <h3 className="text-base font-bold text-white">{selectedPdfResume.title}</h3>
+                </div>
+                <p className="text-xs text-slate-400 mt-1">
+                  Owner: <strong className="text-slate-200">{user.first_name} {user.last_name}</strong> ({user.email})
+                  {selectedPdfResume.original_filename && ` \u2022 Filename: ${selectedPdfResume.original_filename}`}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <a
+                  href={getAdminDownloadPdfUrl(selectedPdfResume.id)}
+                  download
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700 text-xs font-bold text-slate-200 hover:bg-slate-700 hover:text-white transition-colors shadow-sm"
+                  title="Download candidate PDF"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  <span>Download</span>
+                </a>
+                <a
+                  href={getAdminDirectPdfUrl(selectedPdfResume.id)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-600 text-white text-xs font-bold hover:bg-purple-700 transition-colors shadow-sm"
+                  title="Open in new window"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  <span>Open in Tab</span>
+                </a>
+                <button
+                  onClick={() => setSelectedPdfResume(null)}
+                  className="rounded-xl p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-6 bg-slate-950 flex flex-col items-center justify-center">
+              {loadingPdf ? (
+                <div className="py-24 flex flex-col items-center justify-center gap-3 text-slate-400">
+                  <RefreshCw className="h-8 w-8 animate-spin text-purple-400" />
+                  <p className="text-xs font-semibold">Streaming candidate uploaded PDF document...</p>
+                </div>
+              ) : pdfError ? (
+                <div className="p-8 text-center max-w-md bg-slate-900 rounded-2xl border border-rose-500/20 shadow-xl">
+                  <FileText className="h-10 w-10 text-rose-400 mx-auto mb-2" />
+                  <h4 className="text-sm font-bold text-white">Document Stream Issue</h4>
+                  <p className="text-xs text-slate-400 mt-1 mb-4">{pdfError}</p>
+                  <a
+                    href={getAdminDirectPdfUrl(selectedPdfResume.id)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-purple-600 text-white rounded-xl text-xs font-bold shadow-md hover:bg-purple-700"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    <span>Open Direct File URL</span>
+                  </a>
+                </div>
+              ) : pdfBlobUrl ? (
+                <div className="w-full rounded-xl overflow-hidden border border-slate-800 bg-slate-900 shadow-2xl">
+                  <iframe
+                    src={pdfBlobUrl}
+                    className="w-full h-[72vh] rounded-xl bg-white"
+                    title={selectedPdfResume.title}
+                  />
+                </div>
+              ) : (
+                <div className="py-16 text-center text-xs text-slate-500">
+                  No preview available.
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-between border-t border-slate-800 px-6 py-3 bg-slate-950/70">
+              <Link
+                href={`/builder/${selectedPdfResume.id}`}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-purple-400 hover:text-purple-300 transition-colors"
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+                <span>Open in Resume Editor</span>
+              </Link>
+              <button
+                onClick={() => setSelectedPdfResume(null)}
+                className="rounded-lg bg-slate-800 px-4 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-700 hover:text-white transition-colors"
+              >
+                Close Preview
+              </button>
+            </div>
           </div>
         </div>
       )}

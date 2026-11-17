@@ -13,6 +13,7 @@ router.use(authenticate);
 router.get('/', documentController.list);
 router.post('/upload', upload.single('file'), documentController.upload);
 router.get('/:id/download', documentController.download);
+router.get('/:id/file', documentController.getFile);
 router.delete('/:id', documentController.delete);
 
 export default router;

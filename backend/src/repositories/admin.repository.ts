@@ -564,10 +564,8 @@ export class AdminRepository {
     if (resumeRes.rows.length === 0) return null;
 
     const versionsRes = await db.query(
-      `SELECT v.*, j.title AS job_title, c.name AS company_name
+      `SELECT v.*
        FROM resume_versions v
-       LEFT JOIN jobs j ON j.id = v.job_id
-       LEFT JOIN companies c ON c.id = j.company_id
        WHERE v.resume_id = $1
        ORDER BY v.version_number DESC`,
       [id]

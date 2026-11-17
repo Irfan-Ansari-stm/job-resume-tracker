@@ -62,6 +62,24 @@ export class DocumentController {
     }
   }
 
+  async getFile(req: Request, res: Response) {
+    try {
+      const id = req.params.id as string;
+      const doc = await documentRepository.findById(id, req.user!.id);
+      if (!doc) {
+        sendError(res, 'Document not found', 404);
+        return;
+      }
+
+      const realPath = storageService.getFilePath(doc.file_path);
+      res.setHeader('Content-Type', doc.mime_type || 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(doc.original_filename)}"`);
+      res.sendFile(realPath);
+    } catch (err: any) {
+      sendError(res, err.message, 500);
+    }
+  }
+
   async delete(req: Request, res: Response) {
     const id = req.params.id as string;
     const doc = await documentRepository.delete(id, req.user!.id);

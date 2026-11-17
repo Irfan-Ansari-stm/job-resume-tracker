@@ -11,11 +11,13 @@ import {
   Sparkles,
   GitBranch,
   Trash2,
-  CheckCircle,
   Eye,
-  FileCheck,
   X,
   RefreshCw,
+  Download,
+  ExternalLink,
+  Paperclip,
+  CheckCircle,
 } from 'lucide-react';
 
 export default function ResumesPage() {
@@ -38,6 +40,10 @@ export default function ResumesPage() {
 
   // Preview Modal
   const [selectedResume, setSelectedResume] = useState<any | null>(null);
+  const [viewTab, setViewTab] = useState<'pdf' | 'parsed'>('pdf');
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
+  const [loadingPdf, setLoadingPdf] = useState(false);
+  const [pdfError, setPdfError] = useState<string | null>(null);
 
   const fetchResumes = async () => {
     try {
@@ -55,6 +61,57 @@ export default function ResumesPage() {
   useEffect(() => {
     fetchResumes();
   }, []);
+
+  // Handle PDF blob fetching when selectedResume changes
+  useEffect(() => {
+    if (!selectedResume) {
+      if (pdfBlobUrl) {
+        URL.revokeObjectURL(pdfBlobUrl);
+      }
+      setPdfBlobUrl(null);
+      setPdfError(null);
+      return;
+    }
+
+    if (selectedResume.original_file_path) {
+      setViewTab('pdf');
+      setLoadingPdf(true);
+      setPdfError(null);
+
+      const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+
+      fetch(`${apiUrl}/resumes/${selectedResume.id}/file`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+        .then((res) => {
+          if (!res.ok) {
+            throw new Error(`Failed to load PDF (${res.status})`);
+          }
+          return res.blob();
+        })
+        .then((blob) => {
+          const blobUrl = URL.createObjectURL(blob);
+          setPdfBlobUrl(blobUrl);
+        })
+        .catch((err) => {
+          console.error('Error loading PDF blob:', err);
+          setPdfError(err.message || 'Could not display PDF inline.');
+        })
+        .finally(() => {
+          setLoadingPdf(false);
+        });
+    } else {
+      setViewTab('parsed');
+      setPdfBlobUrl(null);
+    }
+
+    return () => {
+      if (pdfBlobUrl) {
+        URL.revokeObjectURL(pdfBlobUrl);
+      }
+    };
+  }, [selectedResume]);
 
   const handleUploadSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -120,10 +177,22 @@ export default function ResumesPage() {
     if (!confirm('Are you sure you want to delete this master resume and its versions?')) return;
     try {
       await api.delete(`/resumes/${id}`);
-      setResumes(prev => prev.filter(r => r.id !== id));
+      setResumes((prev) => prev.filter((r) => r.id !== id));
     } catch (err: any) {
       alert(err.message || 'Delete failed');
     }
+  };
+
+  const getDirectPdfUrl = (resumeId: string) => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : '';
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+    return `${apiUrl}/resumes/${resumeId}/file?token=${encodeURIComponent(token || '')}`;
+  };
+
+  const getDownloadPdfUrl = (resumeId: string) => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : '';
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+    return `${apiUrl}/resumes/${resumeId}/download?token=${encodeURIComponent(token || '')}`;
   };
 
   return (
@@ -133,7 +202,7 @@ export default function ResumesPage() {
         <div>
           <h1 className="text-xl font-bold tracking-tight text-slate-900">My Resumes</h1>
           <p className="text-xs text-slate-500">
-            Manage your master resumes, extracted career data, and tailored version snapshots.
+            Manage your master resumes, original uploaded PDFs, extracted career data, and tailored version snapshots.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -189,12 +258,26 @@ export default function ResumesPage() {
                       <span className="text-[10px] text-slate-500">{r.category || 'General'}</span>
                     </div>
                   </div>
-                  {r.is_primary && (
-                    <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[9px] font-bold px-2 py-0.5 rounded-full">
-                      Primary
-                    </span>
-                  )}
+                  <div className="flex items-center gap-1.5">
+                    {r.original_file_path && (
+                      <span className="bg-rose-50 text-rose-700 border border-rose-200 text-[9px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                        <FileText className="h-2.5 w-2.5" /> PDF
+                      </span>
+                    )}
+                    {r.is_primary && (
+                      <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[9px] font-bold px-2 py-0.5 rounded-full">
+                        Primary
+                      </span>
+                    )}
+                  </div>
                 </div>
+
+                {r.original_filename && (
+                  <p className="text-[11px] text-slate-500 font-mono flex items-center gap-1 mt-1 truncate bg-slate-50 px-2 py-1 rounded-md border border-slate-100">
+                    <Paperclip className="h-3 w-3 text-slate-400 shrink-0" />
+                    <span className="truncate">{r.original_filename}</span>
+                  </p>
+                )}
 
                 <p className="text-xs text-slate-600 line-clamp-3 mt-3 leading-relaxed">
                   {r.summary || 'Master resume profile containing verified candidate career history.'}
@@ -213,14 +296,15 @@ export default function ResumesPage() {
               <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
                 <button
                   onClick={() => setSelectedResume(r)}
-                  className="flex items-center gap-1 text-xs font-semibold text-slate-600 hover:text-blue-600"
+                  className="flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-800 bg-blue-50/70 hover:bg-blue-100/70 px-2.5 py-1.5 rounded-lg transition-colors"
                 >
-                  <Eye className="h-3.5 w-3.5" /> View
+                  <Eye className="h-3.5 w-3.5" />
+                  <span>{r.original_file_path ? 'View PDF' : 'View Profile'}</span>
                 </button>
                 <div className="flex items-center gap-2">
                   <Link
                     href={`/dashboard/ai-studio?resumeId=${r.id}`}
-                    className="flex items-center gap-1 rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700 hover:bg-blue-100 transition-colors"
+                    className="flex items-center gap-1 rounded-lg bg-purple-50 px-2.5 py-1 text-xs font-bold text-purple-700 hover:bg-purple-100 transition-colors"
                   >
                     <Sparkles className="h-3.5 w-3.5" />
                     <span>Customize</span>
@@ -390,50 +474,204 @@ export default function ResumesPage() {
         </div>
       )}
 
-      {/* VIEW RESUME MODAL */}
+      {/* VIEW RESUME & PDF PREVIEW MODAL */}
       {selectedResume && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-xs">
-          <div className="w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-2xl bg-white p-6 shadow-xl border border-slate-200">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-3 sm:p-6 backdrop-blur-xs">
+          <div className="w-full max-w-5xl max-h-[92vh] flex flex-col rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 px-6 py-4 bg-slate-50/50 gap-3">
               <div>
-                <h3 className="text-sm font-bold text-slate-900">{selectedResume.title}</h3>
-                <p className="text-[11px] text-slate-500">{selectedResume.target_role || 'General'}</p>
-              </div>
-              <button onClick={() => setSelectedResume(null)} className="text-slate-400 hover:text-slate-600">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="space-y-4 text-xs text-slate-700">
-              <div>
-                <h4 className="font-bold text-slate-900 mb-1">Professional Summary</h4>
-                <p className="p-3 rounded-lg bg-slate-50 border border-slate-200 leading-relaxed">
-                  {selectedResume.summary || 'No summary provided.'}
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-bold text-slate-900">{selectedResume.title}</h3>
+                  {selectedResume.original_file_path && (
+                    <span className="bg-rose-100 text-rose-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-rose-200">
+                      PDF Document
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {selectedResume.target_role || 'General Role'} &bull; Category: {selectedResume.category || 'General'}
+                  {selectedResume.original_filename && ` &bull; Source: ${selectedResume.original_filename}`}
                 </p>
               </div>
 
-              {selectedResume.parsed_data?.skills && (
-                <div>
-                  <h4 className="font-bold text-slate-900 mb-1">Extracted Competencies</h4>
-                  <div className="flex flex-wrap gap-1.5">
-                    {selectedResume.parsed_data.skills.map((c: any, i: number) => (
-                      <React.Fragment key={i}>
-                        {c.items?.map((item: string) => (
-                          <span key={item} className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-[11px] font-medium border border-blue-200">
-                            {item}
-                          </span>
-                        ))}
-                      </React.Fragment>
-                    ))}
+              <div className="flex items-center gap-2">
+                {selectedResume.original_file_path && (
+                  <>
+                    <a
+                      href={getDownloadPdfUrl(selectedResume.id)}
+                      download
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-100 shadow-2xs transition-colors"
+                      title="Download PDF file"
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      <span>Download</span>
+                    </a>
+                    <a
+                      href={getDirectPdfUrl(selectedResume.id)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 shadow-2xs transition-colors"
+                      title="Open in new window"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      <span>Open New Window</span>
+                    </a>
+                  </>
+                )}
+                <button
+                  onClick={() => setSelectedResume(null)}
+                  className="rounded-xl p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 transition-colors"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* View Tabs */}
+            <div className="flex items-center gap-2 px-6 pt-3 border-b border-slate-100 bg-white">
+              {selectedResume.original_file_path && (
+                <button
+                  onClick={() => setViewTab('pdf')}
+                  className={`flex items-center gap-1.5 px-4 py-2 border-b-2 text-xs font-bold transition-colors ${
+                    viewTab === 'pdf'
+                      ? 'border-blue-600 text-blue-600'
+                      : 'border-transparent text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  <FileText className="h-4 w-4" />
+                  <span>Original PDF Document</span>
+                </button>
+              )}
+              <button
+                onClick={() => setViewTab('parsed')}
+                className={`flex items-center gap-1.5 px-4 py-2 border-b-2 text-xs font-bold transition-colors ${
+                  viewTab === 'parsed'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <CheckCircle className="h-4 w-4" />
+                <span>Extracted Facts & Competencies</span>
+              </button>
+            </div>
+
+            {/* Modal Content Body */}
+            <div className="flex-1 overflow-y-auto p-6 bg-slate-50/30">
+              {viewTab === 'pdf' && selectedResume.original_file_path && (
+                <div className="w-full flex flex-col items-center justify-center">
+                  {loadingPdf ? (
+                    <div className="py-24 flex flex-col items-center justify-center gap-3 text-slate-500">
+                      <RefreshCw className="h-8 w-8 animate-spin text-blue-600" />
+                      <p className="text-xs font-semibold">Streaming uploaded PDF document...</p>
+                    </div>
+                  ) : pdfError ? (
+                    <div className="p-8 text-center max-w-md bg-white rounded-2xl border border-rose-200 shadow-sm">
+                      <FileText className="h-10 w-10 text-rose-400 mx-auto mb-2" />
+                      <h4 className="text-sm font-bold text-slate-800">Preview Warning</h4>
+                      <p className="text-xs text-slate-500 mt-1 mb-4">{pdfError}</p>
+                      <a
+                        href={getDirectPdfUrl(selectedResume.id)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold shadow-sm hover:bg-blue-700"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                        <span>Open Directly in Browser</span>
+                      </a>
+                    </div>
+                  ) : pdfBlobUrl ? (
+                    <div className="w-full rounded-xl overflow-hidden border border-slate-200 bg-white shadow-sm">
+                      <iframe
+                        src={pdfBlobUrl}
+                        className="w-full h-[68vh] rounded-xl"
+                        title={selectedResume.title}
+                      />
+                    </div>
+                  ) : (
+                    <div className="py-16 text-center text-xs text-slate-500">
+                      Unable to render PDF preview.
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {(viewTab === 'parsed' || !selectedResume.original_file_path) && (
+                <div className="space-y-6 text-xs text-slate-700 max-w-4xl mx-auto">
+                  <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs">
+                    <h4 className="font-bold text-slate-900 mb-2 flex items-center gap-1.5 text-xs">
+                      <FileText className="h-4 w-4 text-blue-600" />
+                      <span>Professional Summary</span>
+                    </h4>
+                    <p className="p-3 rounded-lg bg-slate-50/70 border border-slate-100 leading-relaxed text-slate-700">
+                      {selectedResume.summary || 'No summary extracted or specified.'}
+                    </p>
                   </div>
+
+                  {selectedResume.parsed_data?.skills && selectedResume.parsed_data.skills.length > 0 && (
+                    <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs">
+                      <h4 className="font-bold text-slate-900 mb-3 flex items-center gap-1.5 text-xs">
+                        <Sparkles className="h-4 w-4 text-purple-600" />
+                        <span>Extracted Core Competencies & Skills</span>
+                      </h4>
+                      <div className="space-y-3">
+                        {selectedResume.parsed_data.skills.map((c: any, i: number) => (
+                          <div key={i} className="space-y-1.5">
+                            {c.category && (
+                              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                                {c.category}
+                              </span>
+                            )}
+                            <div className="flex flex-wrap gap-1.5">
+                              {c.items?.map((item: string) => (
+                                <span
+                                  key={item}
+                                  className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-md text-[11px] font-semibold border border-blue-200 shadow-2xs"
+                                >
+                                  {item}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedResume.parsed_data?.experience && selectedResume.parsed_data.experience.length > 0 && (
+                    <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs">
+                      <h4 className="font-bold text-slate-900 mb-3 text-xs">Work History</h4>
+                      <div className="space-y-3">
+                        {selectedResume.parsed_data.experience.map((exp: any, i: number) => (
+                          <div key={i} className="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-slate-900">{exp.role || exp.title}</span>
+                              <span className="text-[11px] text-slate-500">{exp.startDate} - {exp.endDate || 'Present'}</span>
+                            </div>
+                            <p className="text-[11px] text-slate-600 font-semibold">{exp.company}</p>
+                            {exp.description && <p className="mt-1 text-slate-600">{exp.description}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
 
-            <div className="mt-6 pt-4 border-t border-slate-100 flex justify-end">
+            {/* Modal Footer */}
+            <div className="flex items-center justify-between border-t border-slate-100 px-6 py-3 bg-white">
+              <Link
+                href={`/dashboard/ai-studio?resumeId=${selectedResume.id}`}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-lg transition-colors"
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                <span>Customize in AI Studio</span>
+              </Link>
+
               <button
                 onClick={() => setSelectedResume(null)}
-                className="rounded-lg bg-slate-100 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200"
+                className="rounded-lg bg-slate-100 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200 transition-colors"
               >
                 Close
               </button>

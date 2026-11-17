@@ -28,6 +28,18 @@ export class ResumeRepository {
     return res.rows[0] || null;
   }
 
+  async findByIdAdmin(id: string) {
+    const res = await db.query(
+      `SELECT r.*, COUNT(v.id) AS versions_count
+       FROM resumes r
+       LEFT JOIN resume_versions v ON v.resume_id = r.id
+       WHERE r.id = $1
+       GROUP BY r.id`,
+      [id]
+    );
+    return res.rows[0] || null;
+  }
+
   async create(data: {
     userId: string;
     title: string;

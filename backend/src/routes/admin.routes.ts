@@ -44,6 +44,8 @@ router.get('/assisted-access/sessions', adminController.getAssistedSessions);
 router.get('/resumes', adminController.getResumes);
 router.post('/resumes', adminController.createResume);
 router.get('/resumes/:id', adminController.getResume);
+router.get('/resumes/:id/file', adminController.getResumeFile);
+router.get('/resumes/:id/download', adminController.downloadResumeFile);
 router.put('/resumes/:id', adminController.updateResume);
 router.delete('/resumes/:id', adminController.deleteResume);
 router.put('/resumes/:id/restore', adminController.restoreResume);

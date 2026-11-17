@@ -22,6 +22,54 @@ export class ResumeController {
     sendSuccess(res, resume);
   }
 
+  async getOriginalFile(req: Request, res: Response) {
+    try {
+      const id = req.params.id as string;
+      const isAdmin = req.user?.role === 'super_admin' || req.user?.role === 'admin';
+      const resume = isAdmin
+        ? await resumeRepository.findByIdAdmin(id)
+        : await resumeRepository.findById(id, req.user!.id);
+
+      if (!resume || !resume.original_file_path) {
+        sendError(res, 'Original document file not found for this resume', 404);
+        return;
+      }
+
+      const realPath = storageService.getFilePath(resume.original_file_path);
+      const filename = resume.original_filename || `${resume.title || 'resume'}.pdf`;
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(filename)}"`);
+      res.sendFile(realPath);
+    } catch (err: any) {
+      sendError(res, err.message || 'File not found', 404);
+    }
+  }
+
+  async downloadOriginalFile(req: Request, res: Response) {
+    try {
+      const id = req.params.id as string;
+      const isAdmin = req.user?.role === 'super_admin' || req.user?.role === 'admin';
+      const resume = isAdmin
+        ? await resumeRepository.findByIdAdmin(id)
+        : await resumeRepository.findById(id, req.user!.id);
+
+      if (!resume || !resume.original_file_path) {
+        sendError(res, 'Original document file not found for this resume', 404);
+        return;
+      }
+
+      const realPath = storageService.getFilePath(resume.original_file_path);
+      const filename = resume.original_filename || `${resume.title || 'resume'}.pdf`;
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
+      res.sendFile(realPath);
+    } catch (err: any) {
+      sendError(res, err.message || 'File not found', 404);
+    }
+  }
+
   async create(req: Request, res: Response) {
     try {
       const { title, summary, targetRole, category, isPrimary, parsedData, formattingSettings } = req.body;

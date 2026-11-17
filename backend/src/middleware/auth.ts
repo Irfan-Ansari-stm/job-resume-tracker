@@ -23,13 +23,16 @@ declare global {
 
 export const authenticate = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
+    let token = '';
     const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.split(' ')[1];
+    } else if (req.query.token && typeof req.query.token === 'string') {
+      token = req.query.token;
+    } else {
       sendError(res, 'Authentication token missing or invalid format', 401);
       return;
     }
-
-    const token = authHeader.split(' ')[1];
     let payload: TokenPayload;
     try {
       payload = verifyToken(token);

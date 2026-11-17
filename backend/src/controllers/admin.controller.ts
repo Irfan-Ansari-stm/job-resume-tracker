@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { adminRepository } from '../repositories/admin.repository.js';
+import { storageService } from '../storage/storage.service.js';
 import { sendSuccess, sendError } from '../utils/response.js';
 
 export class AdminController {
@@ -401,6 +402,46 @@ export class AdminController {
     }
   }
 
+  async getResumeFile(req: Request, res: Response) {
+    try {
+      const id = req.params.id as string;
+      const details = await adminRepository.getResumeById(id);
+      if (!details || !details.resume?.original_file_path) {
+        sendError(res, 'Original document file not found for this resume', 404);
+        return;
+      }
+
+      const realPath = storageService.getFilePath(details.resume.original_file_path);
+      const filename = details.resume.original_filename || `${details.resume.title || 'resume'}.pdf`;
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(filename)}"`);
+      res.sendFile(realPath);
+    } catch (err: any) {
+      sendError(res, err.message || 'File not found', 404);
+    }
+  }
+
+  async downloadResumeFile(req: Request, res: Response) {
+    try {
+      const id = req.params.id as string;
+      const details = await adminRepository.getResumeById(id);
+      if (!details || !details.resume?.original_file_path) {
+        sendError(res, 'Original document file not found for this resume', 404);
+        return;
+      }
+
+      const realPath = storageService.getFilePath(details.resume.original_file_path);
+      const filename = details.resume.original_filename || `${details.resume.title || 'resume'}.pdf`;
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
+      res.sendFile(realPath);
+    } catch (err: any) {
+      sendError(res, err.message || 'File not found', 404);
+    }
+  }
+
   async createResume(req: Request, res: Response) {
     try {
       const { userId, title, summary, targetRole, category, parsedData, formattingSettings } = req.body;
@@ -742,7 +783,7 @@ export class AdminController {
 
   async createJob(req: Request, res: Response) {
     try {
-      const { companyId, title, url, location, employmentType, salaryMin, salaryMax, description, requirements } = req.body;
+      const { companyId, title, jobUrl, url, location, employmentType, salaryMin, salaryMax, description, requirements } = req.body;
       if (!title) {
         sendError(res, 'Job title is required', 400);
         return;
@@ -752,7 +793,7 @@ export class AdminController {
         userId: req.user!.id,
         companyId,
         title,
-        url,
+        jobUrl: jobUrl || url,
         location,
         employmentType,
         salaryMin,

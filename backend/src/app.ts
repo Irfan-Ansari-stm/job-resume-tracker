@@ -11,7 +11,10 @@ import { db } from './config/db.js';
 export const app = express();
 
 // Security middleware
-app.use(helmet());
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  contentSecurityPolicy: false,
+}));
 app.use(cors({
   origin: [config.frontendUrl, 'http://localhost:3000', 'http://127.0.0.1:3000'],
   credentials: true,

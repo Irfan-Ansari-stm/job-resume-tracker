@@ -17,6 +17,8 @@ router.post('/', resumeController.create);
 router.get('/versions/all', resumeController.getAllUserVersions);
 router.get('/versions/compare', resumeController.compareVersions);
 router.get('/:id', resumeController.getById);
+router.get('/:id/file', resumeController.getOriginalFile);
+router.get('/:id/download', resumeController.downloadOriginalFile);
 router.put('/:id', resumeController.update);
 router.delete('/:id', resumeController.delete);
 
