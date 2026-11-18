@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { jobRepository } from '../repositories/job.repository.js';
+import { applicationRepository } from '../repositories/application.repository.js';
 import { sendSuccess, sendError } from '../utils/response.js';
 
 export class JobController {
@@ -72,6 +73,36 @@ export class JobController {
       return;
     }
     sendSuccess(res, null, 'Job deleted successfully');
+  }
+
+  async convertToApplication(req: Request, res: Response) {
+    try {
+      const id = req.params.id as string;
+      const job = await jobRepository.findById(id, req.user!.id);
+      if (!job) {
+        sendError(res, 'Job not found', 404);
+        return;
+      }
+
+      const application = await applicationRepository.create({
+        userId: req.user!.id,
+        companyId: job.company_id,
+        jobId: job.id,
+        companyName: job.company_name,
+        jobTitle: job.title,
+        jobUrl: job.job_url,
+        jobDescription: job.raw_description,
+        location: job.location,
+        employmentType: job.employment_type,
+        status: req.body.status || 'applied',
+        resumeVersionId: req.body.resumeVersionId,
+        notes: req.body.notes || 'Converted from saved job posting.',
+      });
+
+      sendSuccess(res, application, 'Saved job converted to application successfully', 201);
+    } catch (err: any) {
+      sendError(res, err.message, 500);
+    }
   }
 }
 

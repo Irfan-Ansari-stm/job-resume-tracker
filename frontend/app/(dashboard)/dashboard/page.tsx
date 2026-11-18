@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { api } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
@@ -17,6 +18,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Building2,
+  ChevronRight,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -32,13 +34,15 @@ import {
 
 export default function DashboardOverview() {
   const { user } = useAuth();
+  const router = useRouter();
+
   const [resumes, setResumes] = useState<any[]>([]);
   const [versions, setVersions] = useState<any[]>([]);
   const [applications, setApplications] = useState<any[]>([]);
   const [interviews, setInterviews] = useState<any[]>([]);
-  const [credits, setCredits] = useState<number>(15);
+  const [credits, setCredits] = useState<number>(100);
   const [loading, setLoading] = useState(true);
-  const [dateFilter, setDateFilter] = useState('30d');
+  const [dateFilter, setDateFilter] = useState<'7d' | '30d' | '90d' | 'all'>('30d');
 
   useEffect(() => {
     async function fetchDashboardData() {
@@ -55,7 +59,7 @@ export default function DashboardOverview() {
         if (vRes.success) setVersions(vRes.data);
         if (aRes.success) setApplications(aRes.data);
         if (iRes.success) setInterviews(iRes.data);
-        if (cRes.success) setCredits(cRes.data.remaining_credits ?? 15);
+        if (cRes.success) setCredits(cRes.data.remaining_credits ?? 75);
       } catch (err) {
         console.error('Dashboard data fetch error:', err);
       } finally {
@@ -65,36 +69,83 @@ export default function DashboardOverview() {
     fetchDashboardData();
   }, []);
 
-  // Compute metrics from actual database records
+  // Filter records based on selected date range
+  const filterDateCutoff = useMemo(() => {
+    if (dateFilter === 'all') return null;
+    const now = new Date();
+    const days = dateFilter === '7d' ? 7 : dateFilter === '30d' ? 30 : 90;
+    return new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+  }, [dateFilter]);
+
+  const filteredApplications = useMemo(() => {
+    if (!filterDateCutoff) return applications;
+    return applications.filter(a => new Date(a.created_at || a.application_date) >= filterDateCutoff);
+  }, [applications, filterDateCutoff]);
+
+  const filteredVersions = useMemo(() => {
+    if (!filterDateCutoff) return versions;
+    return versions.filter(v => new Date(v.created_at) >= filterDateCutoff);
+  }, [versions, filterDateCutoff]);
+
+  // Compute metrics from real database records
   const totalResumes = resumes.length;
-  const customizedVersions = versions.length;
-  const totalApps = applications.length;
-  const activeApps = applications.filter(a => !['rejected', 'withdrawn', 'archived'].includes(a.status)).length;
-  const scheduledInterviews = interviews.filter(i => i.result === 'pending').length;
-  const offersReceived = applications.filter(a => a.status === 'offer_received').length;
+  const customizedVersions = filteredVersions.length;
+  const totalApps = filteredApplications.length;
+  const activeApps = filteredApplications.filter(a => !['rejected', 'withdrawn', 'archived'].includes(a.status)).length;
+  const scheduledInterviews = interviews.filter(i => i.result === 'pending' || !i.result).length;
+  const offersReceived = filteredApplications.filter(a => a.status === 'offer_received').length;
 
   // Chart data: Applications by Status
-  const statusCounts = applications.reduce((acc: Record<string, number>, app) => {
-    acc[app.status] = (acc[app.status] || 0) + 1;
-    return acc;
-  }, {});
+  const statusCounts = useMemo(() => {
+    return filteredApplications.reduce((acc: Record<string, number>, app) => {
+      acc[app.status] = (acc[app.status] || 0) + 1;
+      return acc;
+    }, {});
+  }, [filteredApplications]);
 
-  const statusChartData = [
-    { name: 'Applied', value: statusCounts['applied'] || 0, color: '#3b82f6' },
-    { name: 'Interview', value: (statusCounts['interview_scheduled'] || 0) + (statusCounts['interviewing'] || 0), color: '#8b5cf6' },
-    { name: 'Assessment', value: statusCounts['assessment'] || 0, color: '#f59e0b' },
-    { name: 'Offer', value: statusCounts['offer_received'] || 0, color: '#10b981' },
-    { name: 'Rejected', value: statusCounts['rejected'] || 0, color: '#ef4444' },
-  ].filter(d => d.value > 0);
+  const statusChartData = useMemo(() => {
+    return [
+      { name: 'Applied', value: statusCounts['applied'] || 0, color: '#3b82f6' },
+      { name: 'Interview', value: (statusCounts['interview_scheduled'] || 0) + (statusCounts['interviewing'] || 0), color: '#8b5cf6' },
+      { name: 'Under Review', value: (statusCounts['under_review'] || 0) + (statusCounts['assessment'] || 0) + (statusCounts['shortlisted'] || 0), color: '#f59e0b' },
+      { name: 'Offer', value: statusCounts['offer_received'] || 0, color: '#10b981' },
+      { name: 'Saved/Other', value: (statusCounts['saved'] || 0) + (statusCounts['interested'] || 0), color: '#64748b' },
+      { name: 'Rejected/Withdrawn', value: (statusCounts['rejected'] || 0) + (statusCounts['withdrawn'] || 0), color: '#ef4444' },
+    ].filter(d => d.value > 0);
+  }, [statusCounts]);
 
-  // Bar Chart Data: Monthly Activity
-  const activityData = [
-    { month: 'Jul', applications: 2, customizations: 3 },
-    { month: 'Aug', applications: 4, customizations: 5 },
-    { month: 'Sep', applications: 6, customizations: 8 },
-    { month: 'Oct', applications: 9, customizations: 11 },
-    { month: 'Nov', applications: totalApps, customizations: customizedVersions },
-  ];
+  // Dynamic monthly activity aggregation
+  const activityData = useMemo(() => {
+    const months = ['Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const currentMonthIdx = new Date().getMonth(); // Nov = 10 (0-indexed)
+
+    // Build last 5 months
+    const result = [];
+    for (let i = 4; i >= 0; i--) {
+      const d = new Date();
+      d.setMonth(currentMonthIdx - i);
+      const mName = d.toLocaleString('en-US', { month: 'short' });
+      const mYear = d.getFullYear();
+      const mMonth = d.getMonth();
+
+      const appCount = applications.filter(a => {
+        const ad = new Date(a.created_at || a.application_date);
+        return ad.getFullYear() === mYear && ad.getMonth() === mMonth;
+      }).length;
+
+      const verCount = versions.filter(v => {
+        const vd = new Date(v.created_at);
+        return vd.getFullYear() === mYear && vd.getMonth() === mMonth;
+      }).length;
+
+      result.push({
+        month: mName,
+        applications: appCount,
+        customizations: verCount,
+      });
+    }
+    return result;
+  }, [applications, versions]);
 
   return (
     <div className="space-y-6">
@@ -131,77 +182,116 @@ export default function DashboardOverview() {
 
       {/* Date Range Selector */}
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-bold text-slate-900">Key Performance Indicators</h2>
+        <div>
+          <h2 className="text-sm font-bold text-slate-900">Key Performance Indicators</h2>
+          <p className="text-[11px] text-slate-500">Live database metrics for the selected time horizon</p>
+        </div>
         <div className="inline-flex rounded-lg bg-slate-200/70 p-1 text-[11px] font-semibold">
-          {['7d', '30d', '90d', 'All Time'].map((f) => (
+          {(['7d', '30d', '90d', 'all'] as const).map((f) => (
             <button
               key={f}
               onClick={() => setDateFilter(f)}
-              className={`rounded-md px-2.5 py-1 transition-all ${
-                dateFilter === f ? 'bg-white text-slate-900 shadow-2xs font-bold' : 'text-slate-600'
+              className={`rounded-md px-3 py-1 transition-all capitalize ${
+                dateFilter === f ? 'bg-white text-slate-900 shadow-2xs font-bold' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              {f}
+              {f === 'all' ? 'All Time' : f}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Summary KPI Cards Grid */}
+      {/* Summary KPI Cards Grid (Clickable) */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3.5">
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs">
+        <Link
+          href="/dashboard/resumes"
+          className="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs hover:border-blue-300 hover:shadow-xs transition-all group cursor-pointer block"
+        >
           <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-[11px] font-medium">Root Resumes</span>
+            <span className="text-[11px] font-medium group-hover:text-blue-600">Root Resumes</span>
             <FileText className="h-4 w-4 text-blue-600" />
           </div>
           <p className="text-2xl font-bold text-slate-900">{totalResumes}</p>
-          <span className="text-[10px] text-emerald-600 font-semibold">Canonical profiles</span>
-        </div>
+          <span className="text-[10px] text-emerald-600 font-semibold flex items-center justify-between">
+            <span>Canonical profiles</span>
+            <ChevronRight className="h-3 w-3 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+          </span>
+        </Link>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs">
+        <Link
+          href="/dashboard/versions"
+          className="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs hover:border-purple-300 hover:shadow-xs transition-all group cursor-pointer block"
+        >
           <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-[11px] font-medium">Customized</span>
+            <span className="text-[11px] font-medium group-hover:text-purple-600">Customized</span>
             <Sparkles className="h-4 w-4 text-purple-600" />
           </div>
           <p className="text-2xl font-bold text-slate-900">{customizedVersions}</p>
-          <span className="text-[10px] text-purple-600 font-semibold">Targeted versions</span>
-        </div>
+          <span className="text-[10px] text-purple-600 font-semibold flex items-center justify-between">
+            <span>Targeted versions</span>
+            <ChevronRight className="h-3 w-3 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+          </span>
+        </Link>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs">
+        <Link
+          href="/dashboard/applications"
+          className="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs hover:border-indigo-300 hover:shadow-xs transition-all group cursor-pointer block"
+        >
           <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-[11px] font-medium">Applications</span>
+            <span className="text-[11px] font-medium group-hover:text-indigo-600">Applications</span>
             <Briefcase className="h-4 w-4 text-indigo-600" />
           </div>
           <p className="text-2xl font-bold text-slate-900">{totalApps}</p>
-          <span className="text-[10px] text-slate-500 font-medium">{activeApps} active</span>
-        </div>
+          <span className="text-[10px] text-slate-500 font-medium flex items-center justify-between">
+            <span>{activeApps} active</span>
+            <ChevronRight className="h-3 w-3 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+          </span>
+        </Link>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs">
+        <Link
+          href="/dashboard/interviews"
+          className="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs hover:border-emerald-300 hover:shadow-xs transition-all group cursor-pointer block"
+        >
           <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-[11px] font-medium">Interviews</span>
+            <span className="text-[11px] font-medium group-hover:text-emerald-600">Interviews</span>
             <Calendar className="h-4 w-4 text-emerald-600" />
           </div>
           <p className="text-2xl font-bold text-slate-900">{scheduledInterviews}</p>
-          <span className="text-[10px] text-emerald-600 font-semibold">Upcoming</span>
-        </div>
+          <span className="text-[10px] text-emerald-600 font-semibold flex items-center justify-between">
+            <span>Upcoming</span>
+            <ChevronRight className="h-3 w-3 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+          </span>
+        </Link>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs">
+        <Link
+          href="/dashboard/applications?status=offer_received"
+          className="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs hover:border-emerald-300 hover:shadow-xs transition-all group cursor-pointer block"
+        >
           <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-[11px] font-medium">Offers</span>
+            <span className="text-[11px] font-medium group-hover:text-emerald-600">Offers</span>
             <CheckCircle2 className="h-4 w-4 text-emerald-600" />
           </div>
           <p className="text-2xl font-bold text-slate-900">{offersReceived}</p>
-          <span className="text-[10px] text-emerald-600 font-semibold">Received</span>
-        </div>
+          <span className="text-[10px] text-emerald-600 font-semibold flex items-center justify-between">
+            <span>Received</span>
+            <ChevronRight className="h-3 w-3 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+          </span>
+        </Link>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs">
+        <Link
+          href="/dashboard/billing"
+          className="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs hover:border-amber-300 hover:shadow-xs transition-all group cursor-pointer block"
+        >
           <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-[11px] font-medium">AI Credits</span>
+            <span className="text-[11px] font-medium group-hover:text-amber-600">AI Credits</span>
             <Sparkles className="h-4 w-4 text-amber-500" />
           </div>
           <p className="text-2xl font-bold text-slate-900">{credits}</p>
-          <span className="text-[10px] text-blue-600 font-semibold">Available</span>
-        </div>
+          <span className="text-[10px] text-blue-600 font-semibold flex items-center justify-between">
+            <span>Available</span>
+            <ChevronRight className="h-3 w-3 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+          </span>
+        </Link>
       </div>
 
       {/* Analytics Charts Grid */}
@@ -211,7 +301,7 @@ export default function DashboardOverview() {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="text-xs font-bold text-slate-900">Application Velocity & Customization Activity</h3>
-              <p className="text-[11px] text-slate-500">Monthly breakdown of applications vs tailored versions</p>
+              <p className="text-[11px] text-slate-500">Real monthly breakdown of applications vs tailored versions</p>
             </div>
             <TrendingUp className="h-4 w-4 text-blue-600" />
           </div>
@@ -220,7 +310,7 @@ export default function DashboardOverview() {
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={activityData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
                 <Tooltip />
                 <Bar dataKey="applications" fill="#3b82f6" name="Applications" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="customizations" fill="#8b5cf6" name="AI Versions" radius={[4, 4, 0, 0]} />
@@ -233,13 +323,13 @@ export default function DashboardOverview() {
         <div className="lg:col-span-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-2xs flex flex-col justify-between">
           <div>
             <h3 className="text-xs font-bold text-slate-900">Application Pipeline Status</h3>
-            <p className="text-[11px] text-slate-500">Current candidate funnel distribution</p>
+            <p className="text-[11px] text-slate-500">Distribution across active hiring stages</p>
           </div>
 
           <div className="h-48 w-full my-2">
             {statusChartData.length === 0 ? (
               <div className="flex h-full items-center justify-center text-xs text-slate-400">
-                No active applications yet.
+                No applications matching filter.
               </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
@@ -267,7 +357,7 @@ export default function DashboardOverview() {
             {statusChartData.map((s) => (
               <div key={s.name} className="flex items-center gap-1.5">
                 <span className="h-2 w-2 rounded-full" style={{ backgroundColor: s.color }}></span>
-                <span className="text-slate-600">{s.name}:</span>
+                <span className="text-slate-600 truncate">{s.name}:</span>
                 <span className="font-bold text-slate-800">{s.value}</span>
               </div>
             ))}
@@ -297,24 +387,24 @@ export default function DashboardOverview() {
                 >
                   <div className="flex items-center gap-3">
                     <div className="h-8 w-8 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs shrink-0">
-                      {app.company_name[0]}
+                      {app.company_name?.[0] || 'C'}
                     </div>
                     <div>
                       <p className="text-xs font-bold text-slate-900">{app.job_title}</p>
-                      <p className="text-[11px] text-slate-500">{app.company_name} • {app.location || 'Remote'}</p>
+                      <p className="text-[11px] text-slate-500">{app.company_name} &bull; {app.location || 'Remote'}</p>
                     </div>
                   </div>
 
                   <div className="text-right">
                     <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold capitalize ${
                       app.status === 'applied' ? 'bg-blue-100 text-blue-800' :
-                      app.status === 'interview_scheduled' ? 'bg-purple-100 text-purple-800' :
+                      app.status === 'interview_scheduled' || app.status === 'interviewing' ? 'bg-purple-100 text-purple-800' :
                       app.status === 'offer_received' ? 'bg-emerald-100 text-emerald-800' :
                       app.status === 'rejected' ? 'bg-rose-100 text-rose-800' : 'bg-slate-200 text-slate-800'
                     }`}>
                       {app.status.replace('_', ' ')}
                     </span>
-                    <p className="text-[10px] text-slate-400 mt-1">{formatDate(app.created_at)}</p>
+                    <p className="text-[10px] text-slate-400 mt-1">{formatDate(app.created_at || app.application_date)}</p>
                   </div>
                 </div>
               ))

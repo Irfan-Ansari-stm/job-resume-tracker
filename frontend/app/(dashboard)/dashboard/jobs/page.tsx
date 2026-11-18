@@ -78,6 +78,19 @@ export default function JobsPage() {
     }
   };
 
+  const handleConvertToApplication = async (job: any) => {
+    try {
+      const res = await api.post(`/jobs/${job.id}/apply`, {
+        status: 'applied',
+      });
+      if (res.success) {
+        alert(`Application for ${job.title} at ${job.company_name} created successfully!`);
+      }
+    } catch (err: any) {
+      alert(err.message || 'Failed to convert to application');
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -137,15 +150,24 @@ export default function JobsPage() {
                 )}
               </div>
 
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
                 <span className="text-[11px] text-slate-500">{job.employment_type || 'Full Time'}</span>
-                <a
-                  href={`/dashboard/ai-studio?jobTitle=${encodeURIComponent(job.title)}&company=${encodeURIComponent(job.company_name)}`}
-                  className="flex items-center gap-1 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-100 transition-colors"
-                >
-                  <Sparkles className="h-3.5 w-3.5" />
-                  <span>Tailor Resume</span>
-                </a>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleConvertToApplication(job)}
+                    className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs"
+                    title="Track as an active application"
+                  >
+                    <span>Track Application</span>
+                  </button>
+                  <a
+                    href={`/dashboard/ai-studio?jobTitle=${encodeURIComponent(job.title)}&company=${encodeURIComponent(job.company_name)}`}
+                    className="flex items-center gap-1 rounded-lg bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700 hover:bg-blue-100 transition-colors"
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    <span>Tailor Resume</span>
+                  </a>
+                </div>
               </div>
             </div>
           ))}

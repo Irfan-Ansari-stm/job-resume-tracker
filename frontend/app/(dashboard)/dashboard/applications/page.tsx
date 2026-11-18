@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
 import {
@@ -23,12 +24,15 @@ import {
 } from 'lucide-react';
 
 export default function ApplicationsPage() {
+  const searchParams = useSearchParams();
+  const initialStatus = searchParams.get('status') || 'all';
+
   const [applications, setApplications] = useState<any[]>([]);
   const [versions, setVersions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'kanban' | 'table' | 'grid'>('kanban');
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState(initialStatus);
 
   // Modals
   const [showAddModal, setShowAddModal] = useState(false);

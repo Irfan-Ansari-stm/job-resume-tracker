@@ -12,6 +12,8 @@ import subscriptionRoutes from './subscription.routes.js';
 import notificationRoutes from './notification.routes.js';
 import adminRoutes from './admin.routes.js';
 import cmsRoutes from './cms.routes.js';
+import supportRoutes from './support.routes.js';
+import analyticsRoutes from './analytics.routes.js';
 
 const router = Router();
 
@@ -28,5 +30,7 @@ router.use('/subscriptions', subscriptionRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/admin', adminRoutes);
 router.use('/cms', cmsRoutes);
+router.use('/support', supportRoutes);
+router.use('/analytics', analyticsRoutes);
 
 export default router;
