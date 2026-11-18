@@ -55,7 +55,7 @@ export class AiController {
       const { jobTitle, companyName, jobDescription, candidateSummary } = req.body;
       const provider = AiProviderFactory.getProvider();
 
-      const systemPrompt = `You are an Executive Career Coach and Interview Strategist.
+      const systemPrompt = `INTERVIEW_PREP: You are an Executive Career Coach and Interview Strategist.
 Generate comprehensive, realistic interview preparation recommendations based on the target role and candidate background.
 Provide output in JSON format including overview, key talking points, and suggested behavioral and technical questions.
 DO NOT fabricate candidate experiences. Only recommend highlighting actual candidate strengths.`;

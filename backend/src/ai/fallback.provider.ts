@@ -87,28 +87,7 @@ export class FallbackAiProvider implements AiProvider {
         changeSummary: `Refined professional summary for ${job.title} at ${job.company}, highlighted ${matched.length} key matching competencies (${matched.slice(0, 4).join(', ')}), and identified ${missing.length} missing keywords for review. Preserved candidate career facts verbatim.`,
         disclaimer: 'Matching score is an automated algorithmic estimate and does not guarantee employer ATS acceptance.',
       };
-    } else if (systemPrompt.includes('JOB_ANALYSIS') || userPrompt.includes('jobDescription')) {
-      const desc = (parsedInput.jobDescription || userPrompt).toLowerCase();
-      const techList = [
-        'sql', 'python', 'excel', 'tableau', 'power bi', 'aws', 'docker', 'react',
-        'typescript', 'node.js', 'postgresql', 'agile', 'scrum', 'git', 'rest api', 'jira'
-      ];
-      const identifiedSkills = techList.filter(t => desc.includes(t));
-      outputJson = {
-        requiredSkills: identifiedSkills.slice(0, 5),
-        preferredSkills: identifiedSkills.slice(5),
-        responsibilities: [
-          'Collaborate with cross-functional teams to deliver business objectives',
-          'Analyze data and deliver clear actionable business insights',
-          'Maintain high quality development and documentation standards'
-        ],
-        qualifications: [
-          "Bachelor's degree or equivalent practical experience",
-          'Demonstrated expertise in relevant core technical skills'
-        ],
-        atsKeywords: identifiedSkills,
-      };
-    } else if (systemPrompt.includes('INTERVIEW_PREP')) {
+    } else if (systemPrompt.includes('INTERVIEW_PREP') || systemPrompt.includes('Interview Strategist')) {
       outputJson = {
         overview: 'Strategic interview preparation plan tailored to the targeted role and candidate experience.',
         keyTalkingPoints: [
@@ -133,6 +112,27 @@ export class FallbackAiProvider implements AiProvider {
             talkingPoints: 'Connect your career progression to the company domain, mission, and current industry challenges.'
           }
         ]
+      };
+    } else if (systemPrompt.includes('JOB_ANALYSIS') || userPrompt.includes('jobDescription')) {
+      const desc = (parsedInput.jobDescription || userPrompt).toLowerCase();
+      const techList = [
+        'sql', 'python', 'excel', 'tableau', 'power bi', 'aws', 'docker', 'react',
+        'typescript', 'node.js', 'postgresql', 'agile', 'scrum', 'git', 'rest api', 'jira'
+      ];
+      const identifiedSkills = techList.filter(t => desc.includes(t));
+      outputJson = {
+        requiredSkills: identifiedSkills.slice(0, 5),
+        preferredSkills: identifiedSkills.slice(5),
+        responsibilities: [
+          'Collaborate with cross-functional teams to deliver business objectives',
+          'Analyze data and deliver clear actionable business insights',
+          'Maintain high quality development and documentation standards'
+        ],
+        qualifications: [
+          "Bachelor's degree or equivalent practical experience",
+          'Demonstrated expertise in relevant core technical skills'
+        ],
+        atsKeywords: identifiedSkills,
       };
     } else {
       outputJson = {

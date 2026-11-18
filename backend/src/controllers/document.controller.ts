@@ -24,7 +24,13 @@ export class DocumentController {
       );
 
       const title = req.body.title || req.file.originalname;
-      const category = req.body.category || 'other';
+      let rawCategory = (req.body.category || 'other').toLowerCase().trim();
+      if (rawCategory === 'certificates') rawCategory = 'certificate';
+      if (rawCategory === 'resumes') rawCategory = 'resume';
+      if (rawCategory === 'cover_letters') rawCategory = 'cover_letter';
+      const category = ['resume', 'cover_letter', 'certificate', 'portfolio', 'other'].includes(rawCategory)
+        ? rawCategory
+        : 'other';
 
       const doc = await documentRepository.create({
         userId: req.user!.id,
