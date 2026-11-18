@@ -272,6 +272,23 @@ export async function runSeed() {
         usedCredits: 10,
       },
       {
+        email: 'rohan.verma@example.com',
+        role: 'user',
+        passwordHash: demoPasswordHash,
+        firstName: 'Rohan',
+        lastName: 'Verma',
+        phone: '+91-98765-43212',
+        headline: 'Full-Stack Software Engineer | React, Node.js, TypeScript & PostgreSQL',
+        bio: 'Passionate software engineer building resilient, high-throughput web apps and microservices.',
+        targetRole: 'Senior Full-Stack Engineer',
+        targetIndustry: 'Software Products & Cloud Platforms',
+        yearsExp: 4.5,
+        location: 'Bengaluru / Hyderabad',
+        plan: 'pro',
+        initialCredits: 100,
+        usedCredits: 20,
+      },
+      {
         email: 'aarav.patel@example.com',
         role: 'user',
         passwordHash: adminPasswordHash,
@@ -355,7 +372,7 @@ export async function runSeed() {
     proPlanId: string,
     isSuperAdmin: boolean = false
   ) {
-    const invoicePrefix = isSuperAdmin ? 'INV-2026-ADMIN' : 'INV-2026-DEMO';
+    const invoicePrefix = isSuperAdmin ? 'INV-2026-ADMIN' : `INV-2026-${targetUserId.substring(0, 6).toUpperCase()}`;
     console.log(`Configuring realistic portfolio data for ${targetEmail} (${targetName})...`);
     await client.query(`DELETE FROM audit_logs WHERE user_id = $1`, [targetUserId]);
     await client.query(`DELETE FROM notifications WHERE user_id = $1`, [targetUserId]);
@@ -396,6 +413,9 @@ export async function runSeed() {
       { name: 'Deloitte', industry: 'Audit, Consulting & Advisory', location: 'Hyderabad / Mumbai', website: 'https://www.deloitte.com' },
       { name: 'IBM', industry: 'Cloud & Cognitive Computing', location: 'Bengaluru / New York', website: 'https://www.ibm.com' },
       { name: 'Tech Mahindra', industry: 'Digital & Network Transformation', location: 'Pune / Hyderabad', website: 'https://www.techmahindra.com' },
+      { name: 'Microsoft', industry: 'Cloud & Software Platforms', location: 'Bengaluru / Redmond', website: 'https://www.microsoft.com' },
+      { name: 'Google', industry: 'Internet & Artificial Intelligence', location: 'Bengaluru / Mountain View', website: 'https://www.google.com' },
+      { name: 'Amazon', industry: 'E-commerce & Cloud Computing', location: 'Hyderabad / Seattle', website: 'https://www.amazon.com' },
     ];
 
     const companyMap: Record<string, string> = {};
@@ -493,6 +513,26 @@ export async function runSeed() {
         url: 'https://techmahindra.com/jobs/backend-specialist',
         desc: 'Build resilient backend microservices with Node.js, Express, Redis, and native PostgreSQL. Implement zero-ORM raw SQL queries with sub-50ms latencies.',
         skills: ['Node.js', 'Express', 'PostgreSQL', 'Raw SQL', 'Redis', 'Docker']
+      },
+      {
+        company: 'Microsoft',
+        title: 'Principal Cloud Solution Architect',
+        location: 'Bengaluru, India (Hybrid)',
+        employmentType: 'full_time',
+        salaryRange: '$150,000 - $185,000',
+        url: 'https://careers.microsoft.com/cloud-architect',
+        desc: 'Lead enterprise architecture designs, Azure PostgreSQL cloud migrations, and distributed data systems for Fortune 500 customers.',
+        skills: ['Azure', 'PostgreSQL', 'Distributed Systems', 'System Design', 'Enterprise Architecture']
+      },
+      {
+        company: 'Google',
+        title: 'Staff Software Engineer – Infrastructure',
+        location: 'Bengaluru, India / Remote',
+        employmentType: 'full_time',
+        salaryRange: '$165,000 - $205,000',
+        url: 'https://careers.google.com/software-engineer',
+        desc: 'Design and optimize planet-scale backend data services, low-latency relational stores, and high-throughput query execution engines.',
+        skills: ['Distributed Databases', 'Go', 'Python', 'PostgreSQL', 'High Availability', 'Linux Internals']
       }
     ];
 
@@ -1181,6 +1221,46 @@ export async function runSeed() {
         path: 'uploads/demo-transcript.pdf',
         size: 612800,
         mime: 'application/pdf'
+      },
+      {
+        title: 'Python_Institute_Certified_Associate_PCAP.pdf',
+        filename: 'PCAP_Certified_Python_Associate.pdf',
+        category: 'certificate',
+        path: 'uploads/demo-python-cert.pdf',
+        size: 184500,
+        mime: 'application/pdf'
+      },
+      {
+        title: 'Executive_Recommendation_Letter_FinTech.pdf',
+        filename: 'Executive_Letter_of_Recommendation.pdf',
+        category: 'other',
+        path: 'uploads/demo-recommendation.pdf',
+        size: 142100,
+        mime: 'application/pdf'
+      },
+      {
+        title: 'Data_Architecture_Portfolio_Case_Studies.pdf',
+        filename: 'Data_Architecture_Portfolio_Overview.pdf',
+        category: 'portfolio',
+        path: 'uploads/demo-portfolio.pdf',
+        size: 890400,
+        mime: 'application/pdf'
+      },
+      {
+        title: 'General_Professional_Resume_v2026.docx',
+        filename: 'Alex_Morgan_General_Professional.docx',
+        category: 'resume',
+        path: 'uploads/demo-general-resume.docx',
+        size: 51200,
+        mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      },
+      {
+        title: 'PostgreSQL_Performance_Tuning_Certification.pdf',
+        filename: 'PostgreSQL_16_Certified_Specialist.pdf',
+        category: 'certificate',
+        path: 'uploads/demo-postgres-cert.pdf',
+        size: 204500,
+        mime: 'application/pdf'
       }
     ];
 
@@ -1207,7 +1287,12 @@ export async function runSeed() {
       { title: 'Application Submitted: Accenture', message: 'Your application for Applied Intelligence Analyst has been submitted and locked with resume version 4.', type: 'info', link: '/dashboard/applications', isRead: true },
       { title: 'AI Monthly Credits Renewed', message: 'Your Pro Career plan monthly allocation of 100 AI credits has been successfully refreshed.', type: 'system', link: '/dashboard/billing', isRead: true },
       { title: 'Application Status Update: HCLTech', message: 'HCLTech has closed the Enterprise Business Analyst position due to team restructuring.', type: 'warning', link: '/dashboard/applications', isRead: true },
-      { title: 'Profile Strength: 100% Complete', message: 'Your candidate profile, work experience history, and master resumes are fully verified and ATS-ready.', type: 'success', link: '/dashboard/profile', isRead: true }
+      { title: 'Profile Strength: 100% Complete', message: 'Your candidate profile, work experience history, and master resumes are fully verified and ATS-ready.', type: 'success', link: '/dashboard/profile', isRead: true },
+      { title: 'New Saved Job Added: Microsoft', message: 'Principal Cloud Solution Architect added to your saved jobs library.', type: 'info', link: '/dashboard/jobs', isRead: true },
+      { title: 'Application Under Review: Google', message: 'Google Engineering leadership is currently reviewing your resume snapshot for Staff Software Engineer.', type: 'info', link: '/dashboard/applications', isRead: false },
+      { title: 'Resume PDF Export Downloaded', message: 'Senior Data Analyst – TCS tailored resume PDF successfully downloaded.', type: 'system', link: '/dashboard/versions', isRead: true },
+      { title: 'Credential Added to Document Vault', message: 'AWS Solutions Architect certificate uploaded to private encrypted storage.', type: 'system', link: '/dashboard/documents', isRead: true },
+      { title: 'Weekly Application Velocity Report', message: 'You have submitted 4 tailored applications this week across enterprise tech employers.', type: 'info', link: '/dashboard/analytics', isRead: true }
     ];
 
     for (const n of notificationsData) {
@@ -1276,6 +1361,12 @@ export async function runSeed() {
 
   const proPlanId = planIds['pro'] || planIds['free'];
   await seedUserPortfolio(client, userIds['demo@smartresume.com'], 'demo@smartresume.com', 'Alex Morgan', proPlanId, false);
+  if (userIds['aarav.patel@example.com']) {
+    await seedUserPortfolio(client, userIds['aarav.patel@example.com'], 'aarav.patel@example.com', 'Aarav Patel', proPlanId, false);
+  }
+  if (userIds['rohan.verma@example.com']) {
+    await seedUserPortfolio(client, userIds['rohan.verma@example.com'], 'rohan.verma@example.com', 'Rohan Verma', proPlanId, false);
+  }
   await seedUserPortfolio(client, userIds['superadmin@smartresume.ai'], 'superadmin@smartresume.ai', 'Alexander Vance', proPlanId, true);
   });
 
